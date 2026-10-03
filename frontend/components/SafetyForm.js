@@ -9,6 +9,11 @@ import YesNoField from "@/components/YesNoField";
 // Today's date as YYYY-MM-DD in the user's local time zone (the "en-CA" locale formats dates that way)
 const todayLocal = () => new Date().toLocaleDateString("en-CA");
 
+// Photo rules (keep in sync with the constants in backend/src/routes/submissions.js)
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_MB = 10;
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 const fieldClass =
   "h-12 w-full rounded-md border border-zinc-300 bg-white px-3 text-base focus:outline-none focus:ring-2 focus:ring-accent";
 
@@ -23,6 +28,8 @@ export default function SafetyForm() {
   const [answers, setAnswers] = useState({}); // e.g. { ppeHardHat: true, ppeVest: false }
   const [hazardIds, setHazardIds] = useState([]);
   const [notes, setNotes] = useState("");
+  const [photos, setPhotos] = useState([]); // [{ id, file, url }] where url is a local preview
+  const [photoError, setPhotoError] = useState("");
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -52,7 +59,50 @@ export default function SafetyForm() {
     setHazardIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  // Checks each picked file in the browser first, so mistakes are caught before any upload
+  function handleFiles(e) {
+    const picked = Array.from(e.target.files);
+    e.target.value = ""; // lets the user pick the same file again later
+
+    const problems = [];
+    const accepted = [];
+    for (const file of picked) {
+      if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+        problems.push(`${file.name}: only JPEG, PNG or WebP images are allowed.`);
+      } else if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+        problems.push(`${file.name}: larger than ${MAX_PHOTO_MB} MB.`);
+      } else {
+        accepted.push(file);
+      }
+    }
+
+    const room = MAX_PHOTOS - photos.length;
+    if (accepted.length > room) problems.push(`You can attach up to ${MAX_PHOTOS} photos.`);
+
+    const added = accepted.slice(0, room).map((file) => ({
+      id: Math.random().toString(36).slice(2),
+      file,
+      url: URL.createObjectURL(file), // temporary local address used for the thumbnail
+    }));
+    setPhotos((prev) => [...prev, ...added]);
+    setPhotoError(problems.join(" "));
+  }
+
+  function removePhoto(id) {
+    const photo = photos.find((p) => p.id === id);
+    if (photo) URL.revokeObjectURL(photo.url); // free the memory used by the preview
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    setPhotoError("");
+  }
+
+  function clearPhotos() {
+    photos.forEach((p) => URL.revokeObjectURL(p.url));
+    setPhotos([]);
+    setPhotoError("");
+  }
+
   function resetForm() {
+    clearPhotos();
     setSiteId("");
     setWorkDate(todayLocal());
     setAnswers({});
@@ -67,10 +117,13 @@ export default function SafetyForm() {
     setError("");
     setSubmitting(true);
     try {
-      await apiFetch("/api/submissions", {
-        method: "POST",
-        body: { siteId, workDate, ...answers, hazardIds, notes },
-      });
+      // The answers travel as one JSON text field, the photos as files, in a single multipart request
+      const formData = new FormData();
+      formData.append("payload", JSON.stringify({ siteId, workDate, ...answers, hazardIds, notes }));
+      photos.forEach((photo) => formData.append("photos", photo.file));
+
+      await apiFetch("/api/submissions", { method: "POST", body: formData });
+      clearPhotos();
       setSubmitted(true);
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -186,6 +239,55 @@ export default function SafetyForm() {
         </div>
       </section>
 
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Photos</h2>
+        <p className="text-sm text-zinc-600">
+          Optional. Up to {MAX_PHOTOS} photos (JPEG, PNG or WebP, {MAX_PHOTO_MB} MB each): site conditions, PPE,
+          hazards.
+        </p>
+
+        {photos.length > 0 && (
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {photos.map((photo) => (
+              <li
+                key={photo.id}
+                className="relative aspect-square overflow-hidden rounded-md border border-zinc-200"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo.url} alt={photo.file.name} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(photo.id)}
+                  aria-label={`Remove ${photo.file.name}`}
+                  className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-lg text-white"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {photos.length < MAX_PHOTOS && (
+          <label className="flex h-12 cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-400 text-base focus-within:ring-2 focus-within:ring-accent">
+            {photos.length === 0 ? "Add photos" : "Add more photos"}
+            <input
+              type="file"
+              accept={ALLOWED_PHOTO_TYPES.join(",")}
+              multiple
+              onChange={handleFiles}
+              className="sr-only"
+            />
+          </label>
+        )}
+
+        {photoError && (
+          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {photoError}
+          </p>
+        )}
+      </section>
+
       <section className="flex flex-col gap-1.5">
         <label htmlFor="notes" className="text-lg font-semibold">
           Notes
@@ -212,7 +314,7 @@ export default function SafetyForm() {
         disabled={submitting}
         className="h-12 rounded-md bg-brand text-base font-medium text-brand-contrast disabled:opacity-60"
       >
-        {submitting ? "Submitting…" : "Submit form"}
+        {submitting ? (photos.length > 0 ? "Uploading…" : "Submitting…") : "Submit form"}
       </button>
     </form>
   );
