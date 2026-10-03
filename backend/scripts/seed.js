@@ -1,26 +1,31 @@
 import bcrypt from "bcryptjs";
 import { pool } from "../src/db.js";
 
-// Mock site data
+// Demo data only. (Never use passwords like these in a real system.)
 const sites = [
   { name: "Maple Street", address: null },
   { name: "Harbor View", address: null },
   { name: "Oak Ridge", address: null },
 ];
 
-// Test user data
+const hazards = ["Fire", "Explosive", "Poison / toxic", "Electrical", "Falling objects", "Slip / trip", "Other"];
+
 const users = [
   { email: "admin@ras.test", password: "Admin123!", role: "admin", firstName: "Dana", lastName: "Admin" },
   { email: "framer1@ras.test", password: "Framer123!", role: "framer", firstName: "Sam", lastName: "Carter" },
   { email: "framer2@ras.test", password: "Framer123!", role: "framer", firstName: "Jordan", lastName: "Lee" },
 ];
 
-// Skip if already seeded
+// Safe to run repeatedly: existing rows are skipped (ON CONFLICT DO NOTHING)
 for (const s of sites) {
   await pool.query(
     "INSERT INTO sites (site_name, address) VALUES ($1, $2) ON CONFLICT (site_name) DO NOTHING",
     [s.name, s.address]
   );
+}
+
+for (const type of hazards) {
+  await pool.query("INSERT INTO hazards (hazard_type) VALUES ($1) ON CONFLICT (hazard_type) DO NOTHING", [type]);
 }
 
 for (const u of users) {
@@ -35,3 +40,5 @@ for (const u of users) {
 
 await pool.end();
 console.log("Seed finished.");
+
+

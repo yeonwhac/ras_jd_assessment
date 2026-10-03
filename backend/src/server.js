@@ -3,6 +3,9 @@ import express from "express";
 import cors from "cors";
 import { pool } from "./db.js";
 import authRoutes from "./routes/auth.js";
+import siteRoutes from "./routes/sites.js";
+import hazardRoutes from "./routes/hazards.js";
+import submissionRoutes from "./routes/submissions.js";
 
 if (!process.env.JWT_SECRET) {
   console.error("JWT_SECRET is not set. Copy .env.example to .env and fill it in.");
@@ -15,7 +18,8 @@ const app = express();
 app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
 app.use(express.json());
 
-// Check if the server and DB connection is alive (also used for monitoring after deployment)
+// Health check confirms the server and the database connection are alive
+// (also used for monitoring after deployment)
 app.get("/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");
@@ -27,6 +31,15 @@ app.get("/health", async (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/sites", siteRoutes);
+app.use("/api/hazards", hazardRoutes);
+app.use("/api/submissions", submissionRoutes);
+
+// Last: any error thrown inside a route ends up here and is returned as JSON
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err.message);
+  res.status(500).json({ error: "Server error" });
+});
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`API listening on http://localhost:${port}`));

@@ -32,9 +32,10 @@ router.post("/login", async (req, res) => {
     );
     const user = rows[0];
 
-    // message only invalid email or password is shown (to prevent account enumeration)
+    // check if user exists, is active, and password matches
     const valid = user && user.is_active && (await bcrypt.compare(password, user.password_hash));
     if (!valid) {
+       // message only invalid email or password is shown (to prevent account enumeration)
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
@@ -42,6 +43,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign({ sub: String(user.user_id), role: user.role }, process.env.JWT_SECRET, {
       expiresIn: "8h",
     });
+    // return the token and user info
     res.json({ token, user: toPublicUser(user) });
   } catch (err) {
     console.error("Login failed:", err.message);
@@ -49,7 +51,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// GET /api/auth/me  (토큰 필요) -> { user }  : 새로고침해도 로그인 상태를 복원하는 데 사용
+// GET /api/auth/me  (token needed) -> { user }  : if the token is valid, return the logged-in user's info
 router.get("/me", authenticate, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -57,7 +59,9 @@ router.get("/me", authenticate, async (req, res) => {
        FROM users WHERE user_id = $1 AND is_active`,
       [req.user.id]
     );
+    // if the user is not found or inactive, return 401 Unauthorized
     if (!rows[0]) return res.status(401).json({ error: "User not found or inactive" });
+    // return the user's info
     res.json({ user: toPublicUser(rows[0]) });
   } catch (err) {
     console.error("/me failed:", err.message);
