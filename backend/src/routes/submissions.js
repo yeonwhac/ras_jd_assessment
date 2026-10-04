@@ -4,7 +4,7 @@ import { Router } from "express";
 import multer from "multer";
 import { pool } from "../db.js";
 import { authenticate, requireRole } from "../middleware/auth.js";
-import { uploadPhoto, removePhotos, StorageError } from "../storage.js";
+import { uploadPhoto, removePhotos, getPhotoUrls, StorageError } from "../storage.js";
 import { detectImageType } from "../utils/imageType.js";
 import { isId, isValidDate } from "../utils/validation.js";
 
@@ -46,6 +46,8 @@ const CHECKLIST = {
   toolsGoodCondition: "tools_good_condition",
   cordsGoodCondition: "cords_good_condition",
 };
+
+const STATUSES = ["submitted", "reviewed"];
 
 // Returns an error message for the first problem found, or null if the body is valid
 function validate(body) {
@@ -117,6 +119,92 @@ router.get("/", authenticate, requireRole("admin"), async (req, res) => {
       worker: { id: String(r.user_id), name: `${r.first_name} ${r.last_name}` },
     }))
   );
+});
+
+// GET /api/submissions/:id  (any logged-in user)
+// Admins can open any submission, a framer only their own. Someone else's submission gets the same
+// "not found" answer as one that does not exist, so ids cannot be probed.
+router.get("/:id", authenticate, async (req, res) => {
+  const { id } = req.params;
+  if (!isId(id)) return res.status(404).json({ error: "Submission not found." });
+
+  const params = [id];
+  let ownerFilter = "";
+  if (req.user.role !== "admin") {
+    params.push(req.user.id);
+    ownerFilter = "AND s.user_id = $2";
+  }
+
+  const checklistColumns = Object.values(CHECKLIST).map((column) => `s.${column}`);
+  const { rows } = await pool.query(
+    `SELECT s.submission_id, s.work_date::text AS work_date, s.status, s.notes, s.created_at,
+            ${checklistColumns.join(", ")},
+            st.site_id, st.site_name, u.user_id, u.first_name, u.last_name
+     FROM submissions s
+     JOIN sites st ON st.site_id = s.site_id
+     JOIN users u ON u.user_id = s.user_id
+     WHERE s.submission_id = $1 ${ownerFilter}`,
+    params
+  );
+  const submission = rows[0];
+  if (!submission) return res.status(404).json({ error: "Submission not found." });
+
+  const [hazardResult, photoResult] = await Promise.all([
+    pool.query(
+      `SELECT h.hazard_type FROM submissions_hazards sh
+       JOIN hazards h ON h.hazard_id = sh.hazard_id
+       WHERE sh.submission_id = $1 ORDER BY h.hazard_id`,
+      [id]
+    ),
+    pool.query(
+      "SELECT photo_id, photo_name, storage_path FROM photos WHERE submission_id = $1 ORDER BY photo_id",
+      [id]
+    ),
+  ]);
+
+  // Photos live in a private bucket, so each one gets a temporary link. If signing fails the
+  // details still load, and the photos show up as unavailable.
+  let photoUrls = new Map();
+  try {
+    photoUrls = await getPhotoUrls(photoResult.rows.map((photo) => photo.storage_path));
+  } catch (err) {
+    console.error("Could not create photo links:", err.message);
+  }
+
+  res.json({
+    id: String(submission.submission_id),
+    workDate: submission.work_date,
+    status: submission.status,
+    notes: submission.notes,
+    createdAt: submission.created_at,
+    site: { id: String(submission.site_id), name: submission.site_name },
+    worker: { id: String(submission.user_id), name: `${submission.first_name} ${submission.last_name}` },
+    // { ppeHardHat: true, ppeVest: false, ... }
+    checklist: Object.fromEntries(Object.entries(CHECKLIST).map(([key, column]) => [key, submission[column]])),
+    hazards: hazardResult.rows.map((row) => row.hazard_type),
+    photos: photoResult.rows.map((photo) => ({
+      id: String(photo.photo_id),
+      name: photo.photo_name,
+      url: photoUrls.get(photo.storage_path) ?? null,
+    })),
+  });
+});
+
+// PATCH /api/submissions/:id  { status: "reviewed" | "submitted" }  (admins only)
+router.patch("/:id", authenticate, requireRole("admin"), async (req, res) => {
+  const { id } = req.params;
+  const status = req.body?.status;
+  if (!isId(id)) return res.status(404).json({ error: "Submission not found." });
+  if (!STATUSES.includes(status)) {
+    return res.status(400).json({ error: "Status must be 'submitted' or 'reviewed'." });
+  }
+
+  const { rows } = await pool.query(
+    "UPDATE submissions SET status = $1 WHERE submission_id = $2 RETURNING status",
+    [status, id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "Submission not found." });
+  res.json({ status: rows[0].status });
 });
 
 // POST /api/submissions  (framers only)

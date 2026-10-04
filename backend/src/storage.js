@@ -26,3 +26,12 @@ export async function removePhotos(paths) {
   const { error } = await bucket.remove(paths);
   if (error) console.error("Storage cleanup failed:", error.message);
 }
+
+// Creates temporary links (valid for `expiresInSeconds`) so the browser can show photos from the private bucket.
+// Returns a Map of storage path -> link. Paths that could not be signed are left out.
+export async function getPhotoUrls(paths, expiresInSeconds = 3600) {
+  if (paths.length === 0) return new Map();
+  const { data, error } = await bucket.createSignedUrls(paths, expiresInSeconds);
+  if (error) throw new StorageError(error.message);
+  return new Map(data.filter((item) => item.signedUrl).map((item) => [item.path, item.signedUrl]));
+}

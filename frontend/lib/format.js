@@ -12,3 +12,14 @@ export function formatDate(ymd) {
     year: "numeric",
   });
 }
+
+// Turns a timestamp like "2026-10-03T14:05:00.000Z" into "Oct 3, 2026, 2:05 PM" in the viewer's time zone
+export function formatDateTime(isoString) {
+  return new Date(isoString).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

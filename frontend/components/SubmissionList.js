@@ -1,28 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import StatusBadge from "@/components/StatusBadge";
+import { saveListQuery } from "@/lib/listQuery";
 
 const MAX_ROWS = 500; // keep in sync with LIST_LIMIT in backend/src/routes/submissions.js
-
-// Status colors for the status pill
-const STATUS_STYLES = {
-  submitted: "bg-amber-100 text-amber-800",
-  reviewed: "bg-green-100 text-green-800",
-};
 
 const fieldClass =
   "h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-base focus:outline-none focus:ring-2 focus:ring-accent";
 
 const NO_FILTERS = { siteId: "", userId: "", from: "", to: "" };
 
+// Reads the filters out of the page address, e.g. /list?siteId=2&from=2026-10-01
+function filtersFromAddress(searchParams) {
+  return {
+    siteId: searchParams.get("siteId") ?? "",
+    userId: searchParams.get("userId") ?? "",
+    from: searchParams.get("from") ?? "",
+    to: searchParams.get("to") ?? "",
+  };
+}
+
 export default function SubmissionList() {
+  const searchParams = useSearchParams();
   // Options for the filter dropdowns
   const [sites, setSites] = useState([]);
   const [workers, setWorkers] = useState([]);
 
-  const [filters, setFilters] = useState(NO_FILTERS);
+  // The filters are state, so quick successive changes always add up. The address is only read once,
+  // when the page opens (reload, shared link, browser back button).
+  const [filters, setFilters] = useState(() => filtersFromAddress(searchParams));
   const [submissions, setSubmissions] = useState(null); // null until the first load finishes
   const [error, setError] = useState("");
 
@@ -57,7 +68,6 @@ export default function SubmissionList() {
       for (const [key, value] of Object.entries(filters)) { // [["A","B"],["C",""], ...]
         if (value) params.set(key, value); // empty filters are left out
       }
-      // params example: siteId=1&from=2026-10-01
       try {
         const data = await apiFetch(`/api/submissions?${params}`);
         if (!cancelled) {
@@ -74,6 +84,14 @@ export default function SubmissionList() {
     return () => {
       cancelled = true;
     };
+  }, [filters]);
+
+  // Mirror the filters into the page address and remember them for the detail page's "Back to list".
+  // The address is only written here, never read back, so it cannot overwrite a newer change.
+  useEffect(() => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
+    window.history.replaceState(null, "", query ? `/list?${query}` : "/list");
+    saveListQuery(query);
   }, [filters]);
 
   function updateFilter(name, value) {
@@ -201,17 +219,18 @@ export default function SubmissionList() {
           </h3>
           <ul className="divide-y divide-zinc-200">
             {group.rows.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-                <span className="min-w-36 flex-1 font-medium">{row.worker.name}</span>
-                <span className="w-28 text-zinc-700">{formatDate(row.workDate)}</span>
-                <span className="w-20 text-sm text-zinc-500">
-                  {row.photoCount} photo{row.photoCount === 1 ? "" : "s"}
-                </span>
-                <span
-                  className={`w-24 rounded-full py-0.5 text-center text-sm ${STATUS_STYLES[row.status] ?? "bg-zinc-100"}`}
+              <li key={row.id}>
+                <Link
+                  href={`/list/${row.id}`}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-zinc-50"
                 >
-                  {row.status}
-                </span>
+                  <span className="min-w-36 flex-1 font-medium">{row.worker.name}</span>
+                  <span className="w-28 text-zinc-700">{formatDate(row.workDate)}</span>
+                  <span className="w-20 text-sm text-zinc-500">
+                    {row.photoCount} photo{row.photoCount === 1 ? "" : "s"}
+                  </span>
+                  <StatusBadge status={row.status} />
+                </Link>
               </li>
             ))}
           </ul>
