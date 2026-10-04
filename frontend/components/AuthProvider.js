@@ -11,7 +11,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // When the page is opened or refreshed, if a saved token exists, it checks with the server to restore the login state
+  // When the page is opened or refreshed, 
+  // if a saved token exists, it checks with the server to restore the login state
   useEffect(() => {
     let cancelled = false;
 

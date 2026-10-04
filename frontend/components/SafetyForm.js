@@ -112,6 +112,22 @@ export default function SafetyForm() {
     setSubmitted(false);
   }
 
+  // True once the user has typed or picked anything, i.e. when a reset would actually throw something away
+  const hasChanges =
+    siteId !== "" ||
+    workDate !== todayLocal() ||
+    Object.keys(answers).length > 0 ||
+    hazardIds.length > 0 ||
+    notes !== "" ||
+    photos.length > 0;
+
+  // Reset button: ask first if there is something to lose, then start over from the top of the page
+  function handleReset() {
+    if (hasChanges && !window.confirm("Clear the whole form and start over?")) return;
+    resetForm();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -308,6 +324,17 @@ export default function SafetyForm() {
           {error}
         </p>
       )}
+
+      <div className="-mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={submitting}
+          className="rounded px-2 py-2 text-sm text-zinc-600 underline underline-offset-4 hover:text-foreground disabled:opacity-60"
+        >
+          Reset form
+        </button>
+      </div>
 
       <button
         type="submit"
