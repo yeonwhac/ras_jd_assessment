@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 import { CHECKLIST_GROUPS } from "@/lib/checklist";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { loadListQuery } from "@/lib/listQuery";
@@ -11,6 +12,8 @@ import StatusBadge from "@/components/StatusBadge";
 export default function SubmissionDetail() {
   const { id } = useParams(); // the [id] part of /list/[id]
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user.role === "admin";
 
   const [submission, setSubmission] = useState(null);
   const [error, setError] = useState("");
@@ -35,8 +38,10 @@ export default function SubmissionDetail() {
     };
   }, [id]);
 
-  // Back to the list with the filters the admin had (they are remembered for this tab). Opened directly: plain /list.
+  // An admin goes back to the list with the filters they had (remembered for this tab, plain /list if none).
+  // A framer goes back to their own list.
   function goBack() {
+    if (!isAdmin) return router.push("/my");
     const query = loadListQuery();
     router.push(query ? `/list?${query}` : "/list");
   }
@@ -56,7 +61,7 @@ export default function SubmissionDetail() {
 
   const backButton = (
     <button type="button" onClick={goBack} className="mt-6 rounded px-1 py-1 text-sm text-zinc-600 underline underline-offset-4">
-      ← Back to list
+      {isAdmin ? "← Back to list" : "← Back to my submissions"}
     </button>
   );
 
@@ -87,7 +92,8 @@ export default function SubmissionDetail() {
 
       <div className="flex flex-wrap items-center gap-3">
         <StatusBadge status={submission.status} />
-        {submission.status === "submitted" ? (
+        {/* Only admins can change the status; a framer just sees it */}
+        {isAdmin && submission.status === "submitted" && (
           <button
             type="button"
             onClick={() => changeStatus("reviewed")}
@@ -96,7 +102,8 @@ export default function SubmissionDetail() {
           >
             {saving ? "Saving…" : "Mark as reviewed"}
           </button>
-        ) : (
+        )}
+        {isAdmin && submission.status === "reviewed" && (
           <button
             type="button"
             onClick={() => changeStatus("submitted")}

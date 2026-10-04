@@ -121,6 +121,34 @@ router.get("/", authenticate, requireRole("admin"), async (req, res) => {
   );
 });
 
+// GET /api/submissions/mine  (framers only) -> the logged-in framer's own submissions, newest first.
+// This route must stay above "/:id", otherwise "mine" would be read as an id.
+router.get("/mine", authenticate, requireRole("framer"), async (req, res) => {
+  // The user comes from the verified token, so a framer can only ever list their own submissions
+  const { rows } = await pool.query(
+    `SELECT s.submission_id, s.work_date::text AS work_date, s.status, s.created_at,
+            st.site_id, st.site_name,
+            (SELECT COUNT(*) FROM photos p WHERE p.submission_id = s.submission_id)::int AS photo_count
+     FROM submissions s
+     JOIN sites st ON st.site_id = s.site_id
+     WHERE s.user_id = $1
+     ORDER BY s.work_date DESC, s.created_at DESC
+     LIMIT ${LIST_LIMIT}`,
+    [req.user.id]
+  );
+
+  res.json(
+    rows.map((r) => ({
+      id: String(r.submission_id),
+      workDate: r.work_date,
+      status: r.status,
+      createdAt: r.created_at,
+      photoCount: r.photo_count,
+      site: { id: String(r.site_id), name: r.site_name },
+    }))
+  );
+});
+
 // GET /api/submissions/:id  (any logged-in user)
 // Admins can open any submission, a framer only their own. Someone else's submission gets the same
 // "not found" answer as one that does not exist, so ids cannot be probed.

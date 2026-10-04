@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -12,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // if already logged in, skip login screen, redirect to the main page
+  // Skip the login screen if the user is already logged in
   useEffect(() => {
     if (!loading && user) router.replace("/");
   }, [loading, user, router]);
@@ -35,9 +36,12 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-brand">RAS Safety Forms</h1>
-        <p className="mt-1 text-zinc-600">Log in to continue.</p>
+      <div className="flex flex-col items-start gap-4">
+        <Image src="/logo.png" alt="RAS Framing & Formwork" width={288} height={232} priority className="h-28 w-auto" />
+        <div>
+          <h1 className="text-2xl font-semibold text-brand">Safety Forms</h1>
+          <p className="mt-1 text-zinc-600">Log in to continue.</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

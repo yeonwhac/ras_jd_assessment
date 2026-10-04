@@ -19,12 +19,22 @@ function Landing() {
         </p>
       </div>
 
-      <Link
-        href={isAdmin ? "/list" : "/form"}
-        className="flex h-14 items-center justify-center rounded-md bg-brand text-lg font-medium text-brand-contrast"
-      >
-        {isAdmin ? "Open List" : "Open Form"}
-      </Link>
+      <div className="flex flex-col gap-3">
+        <Link
+          href={isAdmin ? "/list" : "/form"}
+          className="flex h-14 items-center justify-center rounded-md bg-brand text-lg font-medium text-brand-contrast"
+        >
+          {isAdmin ? "Open List" : "Open Form"}
+        </Link>
+        {!isAdmin && (
+          <Link
+            href="/my"
+            className="flex h-12 items-center justify-center rounded-md border border-brand text-base font-medium text-brand"
+          >
+            My submissions
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
