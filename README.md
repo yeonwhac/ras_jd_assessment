@@ -61,10 +61,20 @@ Demo data only, created by `npm run seed`.
 - Status is `submitted` or `reviewed`. An admin marks a submission as reviewed; who reviewed it is not stored.
 - "Not submitted today" means active framers with no submission for that date at any site (there are no site assignments). "Today" is the admin's local date.
 - Passwords are hashed with bcrypt. The JWT expires after 8 hours and is kept in `localStorage` for simplicity (an httpOnly cookie would be safer against XSS). There are no refresh tokens or token revocation.
-- A framer can only open their own submissions. Someone else's returns "not found". The admin list shows at most 500 rows (no pagination).
+- A framer can only open their own submissions; someone else's returns "not found". The admin list shows at most 500 rows (no pagination).
 - On free hosting the API may sleep when idle, so the first request after a pause can take up to a minute.
+
+## Database
+
+![ERD](docs/erd.png)
+
+- `users` 1-N `submissions`, `sites` 1-N `submissions`, `submissions` 1-N `photos`
+- `submissions` N-M `hazards` through `submissions_hazards`
+- Photo files live in the private Storage bucket; `photos` only stores their path.
+- Also enforced: one submission per user, site and date; `role` is `framer` or `admin`; `status` is `submitted` or `reviewed`.
+
+The full schema is in `docs/schema.sql`.
 
 ## Links
 
-- Live app: 
-- ERD: `docs/erd.png`
+- Live app: TODO
