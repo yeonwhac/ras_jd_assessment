@@ -6,6 +6,7 @@ import { pool } from "../db.js";
 import { authenticate, requireRole } from "../middleware/auth.js";
 import { uploadPhoto, removePhotos, StorageError } from "../storage.js";
 import { detectImageType } from "../utils/imageType.js";
+import { isId, isValidDate } from "../utils/validation.js";
 
 const router = Router();
 
@@ -46,15 +47,6 @@ const CHECKLIST = {
   cordsGoodCondition: "cords_good_condition",
 };
 
-const isId = (value) => /^\d+$/.test(String(value));
-
-// "2026-10-02" is valid, "2026-02-31" is not
-function isValidDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
 // Returns an error message for the first problem found, or null if the body is valid
 function validate(body) {
   if (!body || typeof body !== "object") return "Invalid form data.";
@@ -69,6 +61,63 @@ function validate(body) {
   }
   return null;
 }
+
+// Most rows the list returns in one response
+const LIST_LIMIT = 500;
+
+// GET /api/submissions?siteId=&userId=&from=&to=  (admins only)
+// Every filter is optional. Rows come back grouped by site (sorted by site name), newest date first.
+router.get("/", authenticate, requireRole("admin"), async (req, res) => {
+  const { siteId, userId, from, to } = req.query;
+
+  if (siteId && !isId(siteId)) return res.status(400).json({ error: "Invalid site." });
+  if (userId && !isId(userId)) return res.status(400).json({ error: "Invalid worker." });
+  if (from && !isValidDate(from)) return res.status(400).json({ error: "Invalid 'from' date." });
+  if (to && !isValidDate(to)) return res.status(400).json({ error: "Invalid 'to' date." });
+  if (from && to && from > to) {
+    return res.status(400).json({ error: "The 'from' date must not be after the 'to' date." });
+  }
+
+  // Build the WHERE clause from the filters that were given. Values always go in `params`
+  // (never into the SQL text), so user input cannot change the query.
+  const conditions = [];
+  const params = [];
+  const addFilter = (sql, value) => {
+    params.push(value);
+    conditions.push(sql.replace("?", `$${params.length}`));
+  };
+  if (siteId) addFilter("s.site_id = ?", siteId);
+  if (userId) addFilter("s.user_id = ?", userId);
+  if (from) addFilter("s.work_date >= ?", from);
+  if (to) addFilter("s.work_date <= ?", to);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // work_date::text keeps the date as "2026-10-03" (a JS Date could shift it by a day across time zones)
+  const { rows } = await pool.query(
+    `SELECT s.submission_id, s.work_date::text AS work_date, s.status, s.created_at,
+            st.site_id, st.site_name, u.user_id, u.first_name, u.last_name,
+            (SELECT COUNT(*) FROM photos p WHERE p.submission_id = s.submission_id)::int AS photo_count
+     FROM submissions s
+     JOIN sites st ON st.site_id = s.site_id
+     JOIN users u ON u.user_id = s.user_id
+     ${where}
+     ORDER BY st.site_name, s.work_date DESC, u.last_name, u.first_name
+     LIMIT ${LIST_LIMIT}`,
+    params
+  );
+
+  res.json(
+    rows.map((r) => ({
+      id: String(r.submission_id),
+      workDate: r.work_date,
+      status: r.status,
+      createdAt: r.created_at,
+      photoCount: r.photo_count,
+      site: { id: String(r.site_id), name: r.site_name },
+      worker: { id: String(r.user_id), name: `${r.first_name} ${r.last_name}` },
+    }))
+  );
+});
 
 // POST /api/submissions  (framers only)
 // multipart/form-data with a "payload" field (the form answers as JSON text) and 0-5 "photos" files

@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { todayLocal } from "@/lib/format";
 import { CHECKLIST_GROUPS } from "@/lib/checklist";
 import YesNoField from "@/components/YesNoField";
-
-// Today's date as YYYY-MM-DD in the user's local time zone (the "en-CA" locale formats dates that way)
-const todayLocal = () => new Date().toLocaleDateString("en-CA");
 
 // Photo rules (keep in sync with the constants in backend/src/routes/submissions.js)
 const MAX_PHOTOS = 5;

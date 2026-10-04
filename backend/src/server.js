@@ -6,6 +6,8 @@ import authRoutes from "./routes/auth.js";
 import siteRoutes from "./routes/sites.js";
 import hazardRoutes from "./routes/hazards.js";
 import submissionRoutes from "./routes/submissions.js";
+import workerRoutes from "./routes/workers.js";
+import summaryRoutes from "./routes/summary.js";
 
 if (!process.env.JWT_SECRET) {
   console.error("JWT_SECRET is not set. Copy .env.example to .env and fill it in.");
@@ -14,12 +16,11 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 
-// only allow requests from the front-end address
+// Only allow requests coming from the frontend (Next.js) origin
 app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
 app.use(express.json());
 
-// Health check confirms the server and the database connection are alive
-// (also used for monitoring after deployment)
+// Health check: confirms the server and the database connection are alive (also used for monitoring after deployment)
 app.get("/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");
@@ -34,8 +35,10 @@ app.use("/api/auth", authRoutes);
 app.use("/api/sites", siteRoutes);
 app.use("/api/hazards", hazardRoutes);
 app.use("/api/submissions", submissionRoutes);
+app.use("/api/workers", workerRoutes);
+app.use("/api/summary", summaryRoutes);
 
-// Last: any error thrown inside a route ends up here and is returned as JSON
+// Last resort: any error thrown inside a route ends up here and is returned as JSON
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err.message);
   res.status(500).json({ error: "Server error" });
