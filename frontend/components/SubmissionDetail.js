@@ -114,6 +114,9 @@ export default function SubmissionDetail() {
           </button>
         )}
       </div>
+      {!isAdmin && submission.status === "submitted" && (
+        <p className="-mt-3 text-sm text-zinc-600">Need to correct something? Contact your supervisor.</p>
+      )}
       {actionError && (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {actionError}

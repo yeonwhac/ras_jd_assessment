@@ -57,6 +57,7 @@ Demo data only, created by `npm run seed`.
 ## Assumptions
 
 - One submission per framer, site and date (unique constraint).
+- Submissions cannot be edited once sent (the spec asks to create and view them), so the record stays trustworthy. A framer who needs a correction contacts a supervisor.
 - Photos are optional: up to 5 per submission, JPEG/PNG/WebP, 10 MB each. They are checked in the browser and again on the server (by file content), stored in a private bucket and shown through temporary links that expire after 1 hour.
 - Status is `submitted` or `reviewed`. An admin marks a submission as reviewed; who reviewed it is not stored.
 - "Not submitted today" means active framers with no submission for that date at any site (there are no site assignments). "Today" is the admin's local date.

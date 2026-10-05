@@ -16,8 +16,10 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 
-// Only allow requests coming from the frontend (Next.js) origin
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
+// Only allow requests coming from the frontend (Next.js) origin.
+// A trailing slash is removed because the browser's Origin header never has one (a copied URL often does).
+const frontendOrigin = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/+$/, "");
+app.use(cors({ origin: frontendOrigin }));
 app.use(express.json());
 
 // Health check: confirms the server and the database connection are alive (also used for monitoring after deployment)
