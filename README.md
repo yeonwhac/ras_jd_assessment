@@ -78,4 +78,4 @@ The full schema is in `docs/schema.sql`.
 
 ## Links
 
-- Live app: TODO
+- Live app: https://ras-jd-assessment.vercel.app
