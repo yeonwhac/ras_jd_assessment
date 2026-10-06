@@ -11,7 +11,7 @@ framers submit daily safety forms (with photos) and admins review them.
 ## Tech stack
 
 - Frontend: Next.js (App Router, JavaScript) + Tailwind CSS
-- Backend: Express (Node.js) with `pg`, `bcryptjs`, `jsonwebtoken`, `multer`
+- Backend: Express (Node.js) with `pg`(PostgreSQL Driver), `bcryptjs`(Password Hashing), `jsonwebtoken`(JWT Authentication), `multer` (File Upload Middleware)
 - Database & file storage: Supabase (PostgreSQL + private Storage bucket)
 - Auth: JWT (Bearer token) with two roles, `framer` and `admin`
 
@@ -53,6 +53,7 @@ Requires Node 20+ and a Supabase project.
 | Framer | framer2@ras.test | Framer123! |
 
 Demo data only, created by `npm run seed`.
+`npm run seed:demo` adds two more framers (`framer3@ras.test`, `framer4@ras.test`, same password).
 
 ## Assumptions
 

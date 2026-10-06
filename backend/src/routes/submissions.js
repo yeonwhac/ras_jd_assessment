@@ -14,7 +14,7 @@ const router = Router();
 const MAX_PHOTOS = 5;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB each
 
-// Files are kept in memory just long enough to be forwarded to Supabase Storage
+// Files are kept in memory (not server disk) just long enough to be forwarded to Supabase Storage
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_PHOTO_BYTES, files: MAX_PHOTOS },
@@ -240,6 +240,7 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req, res) => {
 router.post("/", authenticate, requireRole("framer"), handleUpload, async (req, res) => {
   let body;
   try {
+    // parse FormData string to object
     body = JSON.parse(req.body?.payload);
   } catch {
     return res.status(400).json({ error: "Invalid form data." });
@@ -250,19 +251,20 @@ router.post("/", authenticate, requireRole("framer"), handleUpload, async (req, 
   // Check what each file really is, based on its content
   const photos = [];
   for (const file of req.files || []) {
-    const type = detectImageType(file.buffer);
+    const type = detectImageType(file.buffer);  //check buffer to verify its image type
     if (!type) {
       return res.status(400).json({ error: `"${file.originalname}" is not a JPEG, PNG or WebP image.` });
     }
     // Browsers send filenames as UTF-8 but multer reads them as latin1, so convert to keep non-English names readable
     const originalName = Buffer.from(file.originalname, "latin1").toString("utf8");
+    // in case too long file name, truncate to 255 characters
     photos.push({ buffer: file.buffer, name: path.basename(originalName).slice(0, 255), ...type });
   }
 
-  const columns = Object.values(CHECKLIST);
-  const checklistValues = Object.keys(CHECKLIST).map((key) => body[key]);
-  const hazardIds = [...new Set(body.hazardIds.map(String))]; // drop duplicates
-  const notes = body.notes?.trim() || null;
+  const columns = Object.values(CHECKLIST); // ppe_hard_hat, ppe_vest, ...
+  const checklistValues = Object.keys(CHECKLIST).map((key) => body[key]); // actual true/false
+  const hazardIds = [...new Set(body.hazardIds.map(String))]; // drop duplicates, back to strings
+  const notes = body.notes?.trim() || null; // if whitespace only, just null
 
   const client = await pool.connect();
   const uploadedPaths = [];
@@ -272,6 +274,9 @@ router.post("/", authenticate, requireRole("framer"), handleUpload, async (req, 
 
     // The user comes from the verified token (req.user), never from the request body
     const { rows } = await client.query(
+      // append the checklist columns (ppe_hard_hat, ppe_vest, ...), 
+      // insert values from $5+ (ppe_hard_hat) after the first 4 columns (user_id, site_id, work_date, notes)
+      // return the new submission_id, status, and created_at
       `INSERT INTO submissions (user_id, site_id, work_date, notes, ${columns.join(", ")})
        VALUES ($1, $2, $3, $4, ${columns.map((_, i) => `$${i + 5}`).join(", ")})
        RETURNING submission_id, status, created_at`,
