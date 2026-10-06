@@ -274,9 +274,9 @@ router.post("/", authenticate, requireRole("framer"), handleUpload, async (req, 
 
     // The user comes from the verified token (req.user), never from the request body
     const { rows } = await client.query(
-      // append the checklist columns (ppe_hard_hat, ppe_vest, ...), 
-      // insert values from $5+ (ppe_hard_hat) after the first 4 columns (user_id, site_id, work_date, notes)
-      // return the new submission_id, status, and created_at
+      // 1. append the checklist columns (ppe_hard_hat, ppe_vest, ...), 
+      // 2. insert values from $5+ (ppe_hard_hat) after the first 4 columns (user_id, site_id, work_date, notes)
+      // 3. return the new submission_id, status, and created_at
       `INSERT INTO submissions (user_id, site_id, work_date, notes, ${columns.join(", ")})
        VALUES ($1, $2, $3, $4, ${columns.map((_, i) => `$${i + 5}`).join(", ")})
        RETURNING submission_id, status, created_at`,

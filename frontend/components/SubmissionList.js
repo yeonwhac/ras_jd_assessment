@@ -65,8 +65,9 @@ export default function SubmissionList() {
 
     async function loadList() {
       const params = new URLSearchParams(); // empty search params string (will be key=value&key2=value2...)
-      for (const [key, value] of Object.entries(filters)) { // [["A","B"],["C",""], ...]
-        if (value) params.set(key, value); // empty filters are left out
+      for (const [key, value] of Object.entries(filters)) { // { siteId: "1", from: "" } -> [ ["siteId", "1"], ["from", ""] ]
+        if (value) params.set(key, value); // empty filters are left out, 
+                                           // e.g. [ ["siteId", "1"], ["from", ""] ] -> "siteId=1"
       }
       try {
         const data = await apiFetch(`/api/submissions?${params}`);
